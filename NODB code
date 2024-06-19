@@ -1,0 +1,88 @@
+/*
+This is the original code without using a database. Has functioning GET, POST, PATCH (put), and DELETE functions.
+package main
+import (
+	"fmt"
+	"log"
+
+	"github.com/gofiber/fiber/v2"
+)
+
+// create custom data type called Todo
+type Todo struct {
+	ID        int    `json:"id"`
+	Completed bool   `json:"completed"`
+	Body      string `json:"body"`
+}
+
+func main() {
+
+	// use the fiber web framework to quickly make a server
+	// Create a new Fiber app
+	app := fiber.New()
+
+	// create slice of todos to store each todo that a user inputs
+	// Currently storing todos using memory (no database currently)
+	// all data gets erased when the server is terminated
+	todos := []Todo{}
+
+	// Define a GET route on the root URL ("/api/todos").
+	app.Get("/api/todos", func(c *fiber.Ctx) error {
+		return c.Status(200).JSON(todos)
+	})
+
+	// Define a POST route on the URL("/api/todos"), takes in a json body as an input
+	app.Post("/api/todos", func(c *fiber.Ctx) error {
+		// todo is a pointer to the created Todo struct
+		todo := &Todo{} // deafult value for a todo is {id: 0, completed: false, body: ""}
+		if err := c.BodyParser(todo); err != nil {
+			return err
+		}
+		// body of todo cant be empty
+		if todo.Body == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "Todo body is required"})
+		}
+		// increment id by 1 and add it to the list todos
+		todo.ID = len(todos) + 1
+		// need to derefrence the todo pointer before adding it to the todos list
+		todos = append(todos, *todo)
+		// return a success status and the todo struct
+		return c.Status(201).JSON(todo)
+	})
+
+	// Define a PUT (patch) route to update a todo.
+	app.Patch("/api/todos/:id", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+
+		// search through ids, once found the same id as the params, change its completion status to true
+		for i, todo := range todos {
+			if fmt.Sprint(todo.ID) == id {
+				todos[i].Completed = true
+				return c.Status(200).JSON(todos[i])
+			}
+		}
+		// if id is not found send this error
+		return c.Status(404).JSON(fiber.Map{"error": "Todo not found"})
+	})
+
+	// Define DELETE route to remove a todo.
+	app.Delete("/api/todos/:id", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+
+		for i, todo := range todos {
+			if fmt.Sprint(todo.ID) == id {
+				// if the id is found delete the todo like so
+				// keep todos list items up till i, and then append on to it all of the todo list items from i + 1 (essentially deleting i from the list).
+				todos = append(todos[:i], todos[i+1:]...)
+				return c.Status(200).JSON(fiber.Map{"success": true})
+			}
+		}
+		// if id is not found send this error
+		return c.Status(404).JSON(fiber.Map{"error": "Todo not found"})
+	})
+
+	// Start the server on port 4000, log an error if the server can't start
+	log.Fatal(app.Listen(":4000"))
+
+}
+*/
