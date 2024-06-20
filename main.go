@@ -9,15 +9,16 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // create our custom data type called Todo
 type Todo struct {
-	ID        int    `json:"_id" bson:"_id"` // mongo db stores data as bson (binary json)
-	Completed bool   `json:"completed"`
-	Body      string `json:"body"`
+	ID        primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"` // mongo db stores data as bson (binary json)
+	Completed bool               `json:"completed"`
+	Body      string             `json:"body"`
 }
 
 var collection *mongo.Collection
@@ -66,13 +67,13 @@ func main() {
 	app.Get("/api/todos", getTodos)
 
 	// POST /api/todos - Create a new todo
-	//app.Post("/api/todos", createTodo)
+	app.Post("/api/todos", createTodos)
 
 	// PATCH /api/todos/:id - Update a specific todo by its ID
-	//app.Patch("/api/todos/:id", updateTodo)
+	app.Patch("/api/todos/:id", updateTodos)
 
 	// DELETE /api/todos/:id - Delete a specific todo by its ID
-	//app.Delete("/api/todos/:id", deleteTodo)
+	app.Delete("/api/todos/:id", deleteTodos)
 
 	// Get the port from environment variables, default to "5000" if not set
 	PORT := os.Getenv("PORT")
@@ -89,7 +90,8 @@ func getTodos(c *fiber.Ctx) error {
 	// create a cursor object that points the todos in the database
 	cursor, err := collection.Find(context.Background(), bson.M{})
 	if err != nil {
-		log.Fatal("Couldn't get todo list:", err)
+		log.Printf("Couldn't get todo list:")
+		return err
 	}
 
 	// close cursor at the end of the get function
@@ -103,9 +105,67 @@ func getTodos(c *fiber.Ctx) error {
 		}
 		todos = append(todos, todo)
 	}
+	// return JSON version of todo (default completed status is false)
 	return c.JSON(todos)
 }
 
-// func createTodos(c *fiber.Ctx) error{}
-// func updateTodos(c *fiber.Ctx) error{}
-// func deleteTodos(c *fiber.Ctx) error{}
+func createTodos(c *fiber.Ctx) error {
+	todo := new(Todo)
+	// binds the request body to a struct
+	if err := c.BodyParser(todo); err != nil {
+		log.Printf("Could not parse body:")
+		return err
+	}
+
+	// can not pass an empty struct
+	if todo.Body == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Todo body is required"})
+	}
+
+	// if it is a valid todo, insert it into mongo db collection
+	insertResult, err := collection.InsertOne(context.Background(), todo)
+	if err != nil {
+		log.Printf("Could not insert todo:")
+		return err
+	}
+
+	todo.ID = insertResult.InsertedID.(primitive.ObjectID)
+
+	return c.Status(201).JSON(todo)
+}
+
+func updateTodos(c *fiber.Ctx) error {
+	id := c.Params("id")
+	// need to convert hex id back to int id
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Todo not found"})
+	}
+
+	filter := bson.M{"_id": objectID}
+	update := bson.M{"$set": bson.M{"completed": true}}
+
+	// update todo using BSON formated changes
+	_, err = collection.UpdateOne(context.Background(), filter, update)
+	if err != nil {
+		log.Printf("Could not update todo")
+		return err
+	}
+	return c.Status(200).JSON(fiber.Map{"success": true})
+}
+
+func deleteTodos(c *fiber.Ctx) error {
+	id := c.Params("id")
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		c.Status(400).JSON(fiber.Map{"error": "Invalid todo ID"})
+	}
+
+	filter := bson.M{"_id": objectID}
+	_, err = collection.DeleteOne(context.Background(), filter)
+	if err != nil {
+		log.Printf("Could not delete todo")
+		return err
+	}
+	return c.Status(200).JSON(fiber.Map{"success": true})
+}
