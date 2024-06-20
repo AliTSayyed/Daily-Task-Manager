@@ -1,11 +1,14 @@
-/*
-This is the original code without using a database. Has functioning GET, POST, PATCH (put), and DELETE functions.
+old version for using memory to store REST operations. 
+
 package main
+
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
 )
 
 // create custom data type called Todo
@@ -20,6 +23,15 @@ func main() {
 	// use the fiber web framework to quickly make a server
 	// Create a new Fiber app
 	app := fiber.New()
+
+	// use godotenv module to create a port
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	// port is the value of port in the .env file
+	PORT := os.Getenv("PORT")
 
 	// create slice of todos to store each todo that a user inputs
 	// Currently storing todos using memory (no database currently)
@@ -82,7 +94,7 @@ func main() {
 	})
 
 	// Start the server on port 4000, log an error if the server can't start
-	log.Fatal(app.Listen(":4000"))
+	log.Fatal(app.Listen(":" + PORT))
 
 }
 */

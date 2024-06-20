@@ -1,86 +1,111 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// create custom data type called Todo
+// create our custom data type called Todo
 type Todo struct {
-	ID        int    `json:"id"`
+	ID        int    `json:"_id" bson:"_id"` // mongo db stores data as bson (binary json)
 	Completed bool   `json:"completed"`
 	Body      string `json:"body"`
 }
 
-func main() {
+var collection *mongo.Collection
 
-	// use the fiber web framework to quickly make a server
-	// Create a new Fiber app
+func main() {
+	fmt.Println("hello world")
+
+	// Load environment variables from .env file
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatal("Error loading .env file:", err)
+	}
+
+	// Get MongoDB URI from environment variables
+	MONGODB_URI := os.Getenv("MONGODB_URI")
+
+	// Set up MongoDB client options using the URI
+	clientOptions := options.Client().ApplyURI(MONGODB_URI)
+	// clientOptions now contains configuration settings such as the MongoDB server address
+
+	// Connect to MongoDB
+	client, err := mongo.Connect(context.Background(), clientOptions)
+	if err != nil {
+		log.Fatal("Could not connect to database:", err)
+	}
+
+	// disconenct the database after main function is done
+	defer client.Disconnect(context.Background())
+
+	// Ping MongoDB to verify the connection
+	err = client.Ping(context.Background(), nil)
+	if err != nil {
+		log.Fatal("Could not ping to database:", err)
+	}
+
+	fmt.Println("Connected to MONGODB ATLAS")
+
+	// Access the "todos" collection in the "golang_db" database
+	collection = client.Database("golang_db").Collection("todos")
+
+	// Initialize a new Fiber application instance
 	app := fiber.New()
 
-	// create slice of todos to store each todo that a user inputs
-	// Currently storing todos using memory (no database currently)
-	// all data gets erased when the server is terminated
-	todos := []Todo{}
+	// Define routes for CRUD operations on the "todos" resource
+	// GET /api/todos - Retrieve all todos
+	app.Get("/api/todos", getTodos)
 
-	// Define a GET route on the root URL ("/api/todos").
-	app.Get("/api/todos", func(c *fiber.Ctx) error {
-		return c.Status(200).JSON(todos)
-	})
+	// POST /api/todos - Create a new todo
+	//app.Post("/api/todos", createTodo)
 
-	// Define a POST route on the URL("/api/todos"), takes in a json body as an input
-	app.Post("/api/todos", func(c *fiber.Ctx) error {
-		// todo is a pointer to the created Todo struct
-		todo := &Todo{} // deafult value for a todo is {id: 0, completed: false, body: ""}
-		if err := c.BodyParser(todo); err != nil {
+	// PATCH /api/todos/:id - Update a specific todo by its ID
+	//app.Patch("/api/todos/:id", updateTodo)
+
+	// DELETE /api/todos/:id - Delete a specific todo by its ID
+	//app.Delete("/api/todos/:id", deleteTodo)
+
+	// Get the port from environment variables, default to "5000" if not set
+	PORT := os.Getenv("PORT")
+	if PORT == "" {
+		PORT = "5000"
+	}
+	// Start the Fiber application and listen on the specified port
+	log.Fatal(app.Listen("0.0.0.0:" + PORT))
+}
+
+func getTodos(c *fiber.Ctx) error {
+	// create list to store all the todos
+	var todos []Todo
+	// create a cursor object that points the todos in the database
+	cursor, err := collection.Find(context.Background(), bson.M{})
+	if err != nil {
+		log.Fatal("Couldn't get todo list:", err)
+	}
+
+	// close cursor at the end of the get function
+	defer cursor.Close(context.Background())
+
+	// go through each correct item in the database and append it to the todos list
+	for cursor.Next(context.Background()) {
+		var todo Todo
+		if err := cursor.Decode(&todo); err != nil {
 			return err
 		}
-		// body of todo cant be empty
-		if todo.Body == "" {
-			return c.Status(400).JSON(fiber.Map{"error": "Todo body is required"})
-		}
-		// increment id by 1 and add it to the list todos
-		todo.ID = len(todos) + 1
-		// need to derefrence the todo pointer before adding it to the todos list
-		todos = append(todos, *todo)
-		// return a success status and the todo struct
-		return c.Status(201).JSON(todo)
-	})
-
-	// Define a PUT (patch) route to update a todo.
-	app.Patch("/api/todos/:id", func(c *fiber.Ctx) error {
-		id := c.Params("id")
-
-		// search through ids, once found the same id as the params, change its completion status to true
-		for i, todo := range todos {
-			if fmt.Sprint(todo.ID) == id {
-				todos[i].Completed = true
-				return c.Status(200).JSON(todos[i])
-			}
-		}
-		// if id is not found send this error
-		return c.Status(404).JSON(fiber.Map{"error": "Todo not found"})
-	})
-
-	// Define DELETE route to remove a todo.
-	app.Delete("/api/todos/:id", func(c *fiber.Ctx) error {
-		id := c.Params("id")
-
-		for i, todo := range todos {
-			if fmt.Sprint(todo.ID) == id {
-				// if the id is found delete the todo like so
-				// keep todos list items up till i, and then append on to it all of the todo list items from i + 1 (essentially deleting i from the list).
-				todos = append(todos[:i], todos[i+1:]...)
-				return c.Status(200).JSON(fiber.Map{"success": true})
-			}
-		}
-		// if id is not found send this error
-		return c.Status(404).JSON(fiber.Map{"error": "Todo not found"})
-	})
-
-	// Start the server on port 4000, log an error if the server can't start
-	log.Fatal(app.Listen(":4000"))
-
+		todos = append(todos, todo)
+	}
+	return c.JSON(todos)
 }
+
+// func createTodos(c *fiber.Ctx) error{}
+// func updateTodos(c *fiber.Ctx) error{}
+// func deleteTodos(c *fiber.Ctx) error{}
