@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -60,28 +61,33 @@ func main() {
 	collection = client.Database("golang_db").Collection("todos")
 
 	// Initialize a new Fiber application instance
-	app := fiber.New()
+	router := fiber.New()
+
+	router.Use(cors.New(cors.Config{
+		AllowOrigins: "http://localhost:5173",
+		AllowHeaders: "Origin,Content-Type,Accept",
+	}))
+
+	// Connecting backend to front end using cors from the fiber framework
 
 	// Define routes for CRUD operations on the "todos" resource
 	// GET /api/todos - Retrieve all todos
-	app.Get("/api/todos", getTodos)
-
+	router.Get("/api/todos", getTodos)
 	// POST /api/todos - Create a new todo
-	app.Post("/api/todos", createTodos)
-
+	router.Post("/api/todos", createTodos)
 	// PATCH /api/todos/:id - Update a specific todo by its ID
-	app.Patch("/api/todos/:id", updateTodos)
-
+	router.Patch("/api/todos/:id", updateTodos)
 	// DELETE /api/todos/:id - Delete a specific todo by its ID
-	app.Delete("/api/todos/:id", deleteTodos)
+	router.Delete("/api/todos/:id", deleteTodos)
 
 	// Get the port from environment variables, default to "5000" if not set
 	PORT := os.Getenv("PORT")
 	if PORT == "" {
 		PORT = "5000"
 	}
+
 	// Start the Fiber application and listen on the specified port
-	log.Fatal(app.Listen("0.0.0.0:" + PORT))
+	log.Fatal(router.Listen("0.0.0.0:" + PORT))
 }
 
 func getTodos(c *fiber.Ctx) error {
